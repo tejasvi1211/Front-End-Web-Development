@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Interactive Blog</title>
+  <style>
+    body{margin:0;background:#000;color:#fff;font-family:sans-serif}
+    #loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh}
+    #app{display:none;min-height:100vh;flex-direction:column}
+    .card{background:#111;padding:20px;border-radius:10px;max-width:400px;width:100%}
+    label{display:block;margin-top:10px;color:#aaa;font-size:14px}
+    input, textarea{width:100%;padding:8px;margin-top:4px;background:transparent;border:1px solid #333;border-radius:6px;color:#fff}
+    button{margin-top:14px;padding:10px 14px;background:#e11;border:0;border-radius:8px;color:#fff;cursor:pointer}
+    header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #222}
+    .brand{font-weight:bold;font-size:18px}
+    .avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;border:2px solid #e11;display:flex;align-items:center;justify-content:center;background:#222}
+    .avatar img{width:100%;height:100%;object-fit:cover}
+    #menuBtn{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;margin-left:8px}
+    #dropdownMenu{display:none;position:absolute;right:16px;top:60px;background:#111;border:1px solid #333;border-radius:8px}
+    #dropdownMenu button{display:block;width:200px;padding:10px 12px;background:none;border:0;color:#fff;text-align:left;cursor:pointer}
+    #dropdownMenu button:hover{background:#222}
+    main{padding:20px}
+    section{display:none}
+    .post{border:1px solid #333;padding:12px;border-radius:8px;margin-bottom:12px;background:#111}
+    .post h3{margin:0 0 6px}
+    .muted{color:#aaa;font-size:13px}
+    .deleteBtn{background:#444;padding:6px 10px;border-radius:6px;border:0;margin-top:10px;color:#fff;cursor:pointer}
+    .deleteBtn:hover{background:#e11}
+  </style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="loginPage">
+  <div class="card">
+    <h2>Login</h2><h5>You can enter any random details to access the website. e.g: ABCD</h5>
+    <form id="loginForm">
+      <label>Name</label>
+      <input id="loginName" type="text" required>
+      <label>Username</label>
+      <input id="loginUsername" type="text" required>
+      <label>Email</label>
+      <input id="loginEmail" type="email" required>
+      <button type="submit">Login</button>
+    </form>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="brand">The Blogs</div>
+    <div style="display:flex;align-items:center;gap:10px;position:relative">
+      <div class="avatar"><img id="profileImg" alt="avatar"></div>
+      <button id="menuBtn">☰</button>
+      <div id="dropdownMenu">
+        <button data-action="home">Home</button>
+        <button data-action="publish">Publish Blog</button>
+        <button data-action="myBlogs">My Blogs</button>
+        <button data-action="explore">Explore</button>
+        <button data-action="editProfile">Edit Profile</button>
+        <button data-action="logout">Logout</button>
+      </div>
+    </div>
+  </header>
+  <main>
+    <section id="homeSection">
+      <h2 id="welcome"></h2>
+      <p>Welcome to your interactive blog website.You can publish your blogs by clicking on menu and select Publish Blog.</p>
+    </section>
+
+    <section id="publishSection">
+      <h2>Publish a Blog</h2>
+      <form id="postForm">
+        <label>Title</label>
+        <input id="postTitle" type="text" required>
+        <label>Content</label>
+        <textarea id="postContent" required></textarea>
+        <label>Tags (comma separated)</label>
+        <input id="postTags" type="text">
+        <button type="submit">Publish</button>
+      </form>
+    </section>
+
+    <section id="myBlogsSection">
+      <h2>My Blogs</h2>
+      <div id="myPostsList"></div>
+    </section>
+
+    <section id="exploreSection">
+      <h2>Explore</h2>
+      <div id="exploreList"></div>
+    </section>
+
+    <section id="editProfileSection">
+      <h2>Edit Profile</h2>
+      <form id="editProfileForm">
+        <label>Name</label>
+        <input id="editName" type="text">
+        <label>Username</label>
+        <input id="editUsername" type="text">
+        <label>Profile Picture URL</label>
+        <input id="editPic" type="url">
+        <button type="submit">Save</button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<script>
+const USER_KEY = "blog_user_v4";
+const POSTS_KEY = "blog_posts_v4";
+
+const loginPage = document.getElementById("loginPage");
+const app = document.getElementById("app");
+const loginForm = document.getElementById("loginForm");
+const profileImg = document.getElementById("profileImg");
+const welcome = document.getElementById("welcome");
+
+const sections = {
+  home: document.getElementById("homeSection"),
+  publish: document.getElementById("publishSection"),
+  myBlogs: document.getElementById("myBlogsSection"),
+  explore: document.getElementById("exploreSection"),
+  editProfile: document.getElementById("editProfileSection"),
+};
+
+const postForm = document.getElementById("postForm");
+const myPostsList = document.getElementById("myPostsList");
+const exploreList = document.getElementById("exploreList");
+const editProfileForm = document.getElementById("editProfileForm");
+
+const menuBtn = document.getElementById("menuBtn");
+const dropdown = document.getElementById("dropdownMenu");
+
+const defaultAvatar = "data:image/svg+xml;utf8," +
+  encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="white"/><path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="white"/></svg>');
+
+function loadUser(){ try{return JSON.parse(localStorage.getItem(USER_KEY))}catch{return null}}
+function saveUser(u){ localStorage.setItem(USER_KEY, JSON.stringify(u)) }
+function clearUser(){ localStorage.removeItem(USER_KEY) }
+
+function loadPosts(){ try{return JSON.parse(localStorage.getItem(POSTS_KEY)) || []}catch{return []} }
+function savePosts(p){ localStorage.setItem(POSTS_KEY, JSON.stringify(p)) }
+
+function showSection(name){
+  Object.values(sections).forEach(sec=>sec.style.display="none");
+  if(sections[name]) sections[name].style.display="block";
+  dropdown.style.display="none";
+}
+
+function showLogin(){ loginPage.style.display="flex"; app.style.display="none"; }
+function showApp(user){
+  loginPage.style.display="none"; app.style.display="flex";
+  profileImg.src = user.pic || defaultAvatar;
+  welcome.textContent = "Welcome, " + user.name + " (" + user.username + ")";
+  showSection("home");
+  renderMyPosts();
+  renderExplore();
+}
+
+loginForm.addEventListener("submit", e=>{
+  e.preventDefault();
+  const user={
+    name: document.getElementById("loginName").value.trim(),
+    username: document.getElementById("loginUsername").value.trim(),
+    email: document.getElementById("loginEmail").value.trim(),
+    pic:""
+  };
+  saveUser(user);
+  showApp(user);
+});
+
+menuBtn.addEventListener("click",()=>{
+  dropdown.style.display = dropdown.style.display==="block"?"none":"block";
+});
+
+// ✅ Close dropdown on outside click
+document.addEventListener("click", function(event) {
+  const isInside = dropdown.contains(event.target) || menuBtn.contains(event.target);
+  if (!isInside) dropdown.style.display = "none";
+});
+
+dropdown.addEventListener("click",e=>{
+  if(!e.target.dataset.action) return;
+  const action=e.target.dataset.action;
+  if(action==="logout"){ clearUser(); showLogin(); return; }
+  showSection(action);
+  if(action==="myBlogs") renderMyPosts();
+  if(action==="explore") renderExplore();
+});
+
+postForm.addEventListener("submit", e=>{
+  e.preventDefault();
+  const user = loadUser();
+  const posts = loadPosts();
+  posts.unshift({
+    id: "p" + Date.now(),
+    user: user.username,
+    title: document.getElementById("postTitle").value,
+    content: document.getElementById("postContent").value,
+    tags: document.getElementById("postTags").value.split(",").map(s=>s.trim()).filter(Boolean),
+    created: Date.now()
+  });
+  savePosts(posts);
+  postForm.reset();
+  renderMyPosts();
+  renderExplore();
+  showSection("myBlogs");
+});
+
+function renderMyPosts(){
+  const user = loadUser();
+  const posts = loadPosts().filter(p => p.user === user.username);
+  myPostsList.innerHTML = "";
+  if (!posts.length) {
+    myPostsList.innerHTML = "<p>No posts yet.</p>";
+    return;
+  }
+  posts.forEach(p => {
+    const d = document.createElement("div");
+    d.className = "post";
+    d.innerHTML = `
+      <h3>${p.title}</h3>
+      <div class="muted">${new Date(p.created).toLocaleString()}</div>
+      <p>${p.content}</p>
+      <div class="muted">Tags: ${p.tags.join(", ")}</div>
+      <button class="deleteBtn" data-id="${p.id}">Delete</button>
+    `;
+    d.querySelector(".deleteBtn").addEventListener("click", () => {
+      deletePost(p.id);
+    });
+    myPostsList.appendChild(d);
+  });
+}
+
+function renderExplore(){
+  exploreList.innerHTML = "";
+  const posts = loadPosts();
+  if (!posts.length) {
+    exploreList.innerHTML = "<p>No posts found.</p>";
+    return;
+  }
+  posts.forEach(p => {
+    const d = document.createElement("div");
+    d.className = "post";
+    d.innerHTML = `
+      <h3>${p.title}</h3>
+      <div class="muted">by ${p.user} — ${new Date(p.created).toLocaleString()}</div>
+      <p>${p.content}</p>
+      <div class="muted">Tags: ${p.tags.join(", ")}</div>
+    `;
+    exploreList.appendChild(d);
+  });
+}
+
+function deletePost(postId){
+  let posts = loadPosts();
+  posts = posts.filter(p => p.id !== postId);
+  savePosts(posts);
+  renderMyPosts();
+  renderExplore();
+}
+
+editProfileForm.addEventListener("submit", e=>{
+  e.preventDefault();
+  const user = loadUser();
+  user.name = document.getElementById("editName").value || user.name;
+  user.username = document.getElementById("editUsername").value || user.username;
+  user.pic = document.getElementById("editPic").value || user.pic;
+  saveUser(user);
+  profileImg.src = user.pic || defaultAvatar;
+  welcome.textContent = "Welcome, " + user.name + " (" + user.username + ")";
+  showSection("home");
+});
+
+(function init(){
+  const user = loadUser();
+  if(user) showApp(user); else showLogin();
+})();
+</script>
+</body>
+</html>
